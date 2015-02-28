@@ -61,21 +61,28 @@ class OpenBCIBoard(object):
   """
 
   def __init__(self, port=None, baud=115200, filter_data=True,
-    scaled_output=True, daisy=False):
+    scaled_output=True, daisy=False,isSimulator=False):
     if not port:
       port = find_port()
       if not port:
         raise OSError('Cannot find OpenBCI port')
 
-    self.ser = serial.Serial(port, baud)
-    print("Serial established...")
+    self.isSimulator = isSimulator
 
-    #Initialize 32-bit board, doesn't affect 8bit board
-    self.ser.write('v');
+    if not self.isSimulator:
+      self.ser = serial.Serial(port, baud)
+      print("Serial established...")
+      #Initialize 32-bit board, doesn't affect 8bit board
+      self.ser.write('v');
+      #wait for device to be ready
+      time.sleep(1)
+      self.print_incoming_text()
+    else:
+      print "Simulator board initlialized"
 
-    #wait for device to be ready
-    time.sleep(1)
-    self.print_incoming_text()
+    
+
+    
 
     self.streaming = False
     self.filtering_data = filter_data
@@ -106,15 +113,46 @@ class OpenBCIBoard(object):
       callback: A callback function -- or a list of functions -- that will receive a single argument of the
           OpenBCISample object captured.
     """
+
+    # Enclose callback funtion in a list if it comes alone
+    if not isinstance(callback, list):
+      callback = [callback]
+
+    if self.isSimulator:
+      f = open('/Users/dang/CodeProjects/openbci/OpenBCI_Python/sampledata/meditation.txt','r')
+      rows = f.readlines()
+      #pausetime in seconds
+      pausetime= 1/SAMPLE_RATE
+      #raw data looks like this:
+      # %OpenBCI Raw EEG Data % %Sample Rate = 250.0 Hz %First Column = SampleIndex %Other Columns = EEG data in microvolts
+      # -29, 7715.87, 47.03, 16367.22, 33514.58, 1802.49, 39369.40, -2371.94, 28161.54
+      while 1:
+        for row in rows:
+            time.sleep(pausetime)        
+            row = row.replace(' ','')
+            if row[0]=="%": #skip any commented rows
+              continue
+            elts = row.split(',')
+            sample_id = int(elts[0])
+            channel_data = []
+            for data_idx in range(1,9):
+              channel_data.append(float(elts[data_idx]))
+            #For now, we'll ignore aux data
+            avg_aux_data = []
+            whole_sample = OpenBCISample(sample_id, channel_data,avg_aux_data )
+            #loop through the callbacks given to the data
+            for call in callback:
+                call(whole_sample)
+
+      return
+
     if not self.streaming:
       self.ser.write('b')
       self.streaming = True
 
     start_time = timeit.default_timer()
 
-    # Enclose callback funtion in a list if it comes alone
-    if not isinstance(callback, list):
-      callback = [callback]
+    
     
     while self.streaming:
       # read current sample

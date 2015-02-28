@@ -65,7 +65,10 @@ class UDPServer(object):
 
 
 args = parser.parse_args()
-obci = open_bci.OpenBCIBoard(args.serial, int(args.baud))
+#                OpenBCIBoard(port=port, isSimulator=True)
+
+#obci = open_bci.OpenBCIBoard(args.serial, int(args.baud), isSimulator=True)
+obci = open_bci.OpenBCIBoard(port=port, isSimulator=True)
 if args.filter_data:
   obci.filter_data = True
 sock_server = UDPServer(args.host, int(args.port), args.json)
